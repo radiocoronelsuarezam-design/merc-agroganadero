@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mercado Agroganadero - Resumen Diario</title>
+    <style>
+        /* Diseño Responsivo y Moderno */
+        :root {
+            --primary: #1F4E79;
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-color); margin: 0; padding: 15px; color: var(--text-color); }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.5rem; text-align: center; color: var(--primary); margin-bottom: 20px; }
+        
+        /* Cajas de Información Superior */
+        .info-box { display: flex; justify-content: space-between; flex-wrap: wrap; background: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid var(--primary); }
+        .info-item { margin: 5px 10px; font-weight: bold; font-size: 1.1rem; }
+        .info-item span { font-weight: normal; color: #0056b3; }
+        
+        /* Tabla de Precios */
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; white-space: nowrap; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: var(--primary); color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        
+        /* Fila de Totales */
+        .totals-row { font-weight: bold; background-color: #d1ecf1 !important; color: #0c5460; }
+
+        /* Loader */
+        #loader { text-align: center; font-style: italic; color: #666; margin: 20px 0; }
+
+        @media (max-width: 600px) {
+            .info-box { flex-direction: column; text-align: center; }
+            th, td { padding: 10px 8px; font-size: 0.9rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Indicadores Mercado Agroganadero</h1>
+    
+    <div id="loader">Consultando datos de la jornada...</div>
+
+    <div id="content" style="display: none;">
+        <div class="info-box">
+            <div class="info-item">Fecha de Operatoria: <span id="lbl-fecha">--</span></div>
+            <div class="info-item">Estado: <span id="lbl-estado">--</span></div>
+            <div class="info-item">Total Ingresado: <span id="lbl-cabezas">-- cabezas</span></div>
+        </div>
+
+        <div class="table-wrapper">
+            <table id="precios-table">
+                <thead>
+                    <tr>
+                        <th>Categoría</th>
+                        <th>Precio Mínimo ($)</th>
+                        <th>Precio Máximo ($)</th>
+                        <th>Cabezas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Obtener fecha hábil correspondiente a Buenos Aires
+    function getBusinessDate() {
+        let now = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
+        let hours = now.getHours();
+        let minutes = now.getMinutes();
+        
+        let subtractDays = 0;
+        let dayOfWeek = now.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
+        let isBeforeOpening = (hours < 6 || (hours === 6 && minutes < 30));
+        
+        if (dayOfWeek === 0) subtractDays = 2; // Domingo -> Viernes
+        else if (dayOfWeek === 6) subtractDays = 1; // Sabado -> Viernes
+        else if (dayOfWeek === 1 && isBeforeOpening) subtractDays = 3; // Lunes < 6:30am -> Viernes
+        else if (isBeforeOpening) subtractDays = 1; // Mar-Vie < 6:30am -> Dia anterior
+        
+        now.setDate(now.getDate() - subtractDays);
+        
+        let dd = String(now.getDate()).padStart(2, '0');
+        let mm = String(now.getMonth() + 1).padStart(2, '0');
+        let yyyy = now.getFullYear();
+        
+        return `${dd}/${mm}/${yyyy}`;
+    }
+
+    async function loadMercadoData() {
+        const fecha = getBusinessDate();
+        document.getElementById('lbl-fecha').innerText = fecha;
+
+        // URLs base con los parámetros de la fecha calculada
+        const urlCabezas = `https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000003?txtFECHAINI=${fecha}&txtFECHAFIN=${fecha}&LISTADO=SI`;
+        const urlPrecios = `https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000002?txtFECHAINI=${fecha}&txtFECHAFIN=${fecha}&LISTADO=SI`;
+
+        // Proxys CORS para poder leer las web desde el frontend
+        const proxyCabezas = `https://api.allorigins.win/get?url=${encodeURIComponent(urlCabezas)}`;
+        const proxyPrecios = `https://api.allorigins.win/get?url=${encodeURIComponent(urlPrecios)}`;
+
+        try {
+            // Peticiones asíncronas en paralelo
+            const [resCabezas, resPrecios] = await Promise.all([
+                fetch(proxyCabezas).then(r => r.json()),
+                fetch(proxyPrecios).then(r => r.json())
+            ]);
+
+            const parser = new DOMParser();
+            const docCabezas = parser.parseFromString(resCabezas.contents, 'text/html');
+            const docPrecios = parser.parseFromString(resPrecios.contents, 'text/html');
+
+            // --- 2. EXTRAER TOTAL DE CABEZAS (URL 1) ---
+            let totalCabezas = "0";
+            // Buscamos todas las etiquetas 'b' (negritas)
+            const bTags = docCabezas.querySelectorAll('b');
+            bTags.forEach(tag => {
+                if(tag.innerText.trim().includes('Totales')) {
+                    // El total de cabezas ingresadas es el último td de esa fila
+                    let parentRow = tag.closest('tr');
+                    if(parentRow) {
+                        let cols = parentRow.querySelectorAll('td');
+                        // La última columna contiene el total sumando caídos y vivos
+                        if(cols.length > 0) totalCabezas = cols[cols.length - 1].innerText.trim();
+                    }
+                }
+            });
+            document.getElementById('lbl-cabezas').innerText = totalCabezas;
+
+            // --- 3. EXTRAER ESTADO DE OPERACIÓN (URL 2) ---
+            let estadoTexto = "NO ESPECIFICADO";
+            if (resPrecios.contents.includes('PRECIOS PROVISORIOS')) {
+                estadoTexto = "PROVISORIOS";
+            } else if (resPrecios.contents.includes('PRECIOS DEFINITIVOS')) {
+                estadoTexto = "DEFINITIVOS";
+            }
+            document.getElementById('lbl-estado').innerText = estadoTexto;
+
+            // --- 4. EXTRAER TABLA DE CATEGORÍAS (URL 2) ---
+            const tbodyPrecios = document.querySelector('#precios-table tbody');
+            tbodyPrecios.innerHTML = ""; // Limpiar tabla
+
+            // La tabla de precios suele ser una tabla anidada sin IDs, buscamos por encabezados
+            const allTables = docPrecios.querySelectorAll('table');
+            let dataTable = null;
+            allTables.forEach(t => {
+                if(t.innerText.includes('Categoria') && t.innerText.includes('Mínimo')) {
+                    dataTable = t;
+                }
+            });
+
+            if (dataTable) {
+                const rows = dataTable.querySelectorAll('tr');
+                let foundHeader = false;
+
+                rows.forEach((row, index) => {
+                    const cells = row.querySelectorAll('td');
+                    if(cells.length > 5) { // Las filas de datos tienen múltiples columnas
+                        
+                        let textContent = row.innerText.trim();
+                        // Ignorar filas de encabezados o saltos
+                        if(textContent.includes('Categoria') || textContent.includes('Precios')) return;
+
+                        // Índices aproximados según formato histórico del Mercado
+                        // 0: Categoria, 1: Mínimo, 2: Máximo, 5: Cabezas
+                        let categoria = cells[0]?.innerText.trim() || "";
+                        let min = cells[1]?.innerText.trim() || "-";
+                        let max = cells[2]?.innerText.trim() || "-";
+                        let cabezas = cells[5]?.innerText.trim() || "-";
+                        
+                        // Si la fila está vacía, la omitimos
+                        if(!categoria && min === "-" && max === "-") return;
+                        // Forzar lectura si la categoría está en blanco pero hay valores
+                        if(categoria === "" && (min !== "-" || max !== "-")) categoria = "S/N";
+
+                        const isTotal = textContent.includes('Total') || textContent.includes('Resumen');
+                        const tr = document.createElement('tr');
+                        if (isTotal) tr.className = 'totals-row';
+                        
+                        tr.innerHTML = `
+                            <td>${categoria}</td>
+                            <td>${min}</td>
+                            <td>${max}</td>
+                            <td>${cabezas}</td>
+                        `;
+                        tbodyPrecios.appendChild(tr);
+                    }
+                });
+            } else {
+                tbodyPrecios.innerHTML = "<tr><td colspan='4'>No se encontraron precios para esta fecha.</td></tr>";
+            }
+
+            // Ocultar Loader y mostrar contenido
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+
+        } catch (error) {
+            console.error(error);
+            document.getElementById('loader').innerText = "Error al cargar los datos del Mercado Agroganadero.";
+        }
+    }
+
+    // Iniciar
+    loadMercadoData();
+</script>
+
+</body>
+</html>
