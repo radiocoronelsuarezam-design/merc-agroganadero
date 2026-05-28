@@ -281,37 +281,47 @@
             }
             document.getElementById('lbl-estado').innerText = estadoTexto;
 
-            // --- EXTRAER FILAS DE PRECIOS POR CATEGORÍA (URL 2 - LÓGICA FLEXIBLE) ---
+            // --- EXTRAER FILAS DE PRECIOS POR CATEGORÍA (URL 2) ---
             const tbodyPrecios = document.querySelector('#precios-table tbody');
             tbodyPrecios.innerHTML = ""; 
 
-            // Escaneamos todas las filas 'tr' de la página directamente sin importar la tabla contenedora
             const allRows = docPrecios.querySelectorAll('tr');
             let rowsCount = 0;
 
             allRows.forEach((row) => {
                 const cells = row.querySelectorAll('td');
                 
-                // Las filas de datos del MAG tienen entre 6 y 10 columnas útiles
-                if(cells.length >= 6) {
+                if(cells.length >= 4) {
                     let textContent = row.innerText.trim();
                     let textLower = textContent.toLowerCase();
                     
-                    // Omitir cabeceras o notas del pie de página
-                    if(textLower.includes('categoria') || textLower.includes('precios por') || textLower.includes('nota:')) return;
+                    // 1. Filtro estricto para remover menús de pie de página ("imprimir", "cerrar", etc)
+                    if(textLower.includes('categoria') || 
+                       textLower.includes('precios por') || 
+                       textLower.includes('nota:') || 
+                       textLower.includes('imprimir') || 
+                       textLower.includes('cerrar')) {
+                        return;
+                    }
 
                     let categoria = cells[0]?.innerText.trim() || "";
                     let min = cells[1]?.innerText.trim() || "";
                     let max = cells[2]?.innerText.trim() || "";
-                    let cabezas = cells[5]?.innerText.trim() || "";
+                    let cabezas = cells[5]?.innerText.trim() || cells[cells.length - 4]?.innerText.trim() || "";
 
-                    // Si no tiene importes o cantidades numéricas válidas, descartamos la fila
-                    if (!min && !max && !cabezas) return;
-
-                    // Si la fila es un totalizador o resumen
+                    // Es la fila de totales generales al final del cuadro
                     const isTotal = textLower.includes('total') || textLower.includes('resumen');
-                    
-                    // Requisito: Si la categoría está en blanco pero posee datos en las columnas
+
+                    // 2. FILTRO CLAVE: Si los precios mínimos o máximos contienen únicamente un guion "-", 
+                    // o están completamente vacíos, descartamos la fila por entero (aplica a cabeceras de grupos vacías).
+                    // Nota: Exceptuamos la fila de TOTALES finales para asegurar que siempre se muestre.
+                    if (!isTotal) {
+                        if (!min || !max || min === "-" || max === "-" || min.trim() === "" || max.trim() === "") {
+                            return; 
+                        }
+                    }
+
+                    // 3. Requisito: Si la categoría está en blanco en el origen pero posee datos válidos
                     if(categoria === "" && (min !== "" || max !== "")) {
                         categoria = "[Categoría Especial / S.N.]";
                     }
@@ -319,7 +329,7 @@
                     const tr = document.createElement('tr');
                     if (isTotal) {
                         tr.className = 'totals-row';
-                        categoria = "TOTALES";
+                        categoria = "TOTALES GENERALES";
                     }
                     
                     tr.innerHTML = `
