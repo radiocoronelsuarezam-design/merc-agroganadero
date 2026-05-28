@@ -363,27 +363,22 @@
 
     //Enviar Height
     function enviarAltura() {
-        // Calculamos el alto total real de la página
         const altoContenido = document.documentElement.scrollHeight || document.body.scrollHeight;
         
-        // CANAL SEGURO: Enviamos el dato apuntando estrictamente a la URL de la radio
-        window.parent.postMessage(
-        { tipo: 'ajustarAlto', alto: altoContenido }, 
-        'https://radiocoronelsuarez.com.ar'
-        );
+        // Al usar '*' permitimos que la web de la radio lo reciba sin importar si el usuario entró con o sin 'www.'
+        window.parent.postMessage({ tipo: 'ajustarAlto', alto: altoContenido }, '*');
     }
 
-    // Evento al cargar la página por completo
     window.addEventListener('load', enviarAltura);
-
-    // Evento al cambiar el tamaño de la ventana
     window.addEventListener('resize', enviarAltura);
 
-    // Observador por si el contenido interno cambia o se expande dinámicamente
     if (window.ResizeObserver) {
         const observer = new ResizeObserver(enviarAltura);
         observer.observe(document.body);
     }
+    
+    // Ejecución forzada inmediata
+    enviarAltura();
 </script>
 
 </body>
