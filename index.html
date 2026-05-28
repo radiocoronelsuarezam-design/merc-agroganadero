@@ -362,29 +362,30 @@
     window.addEventListener('DOMContentLoaded', loadMercadoData);
 
     //Enviar Height
-let ultimaAltura = 0;
+    let ultimaAltura = 0;
 
-  function enviarAltura() {
-    // Calculamos el alto real exacto del contenedor principal
-    const altoContenido = document.documentElement.offsetHeight || document.body.scrollHeight;
-    
-    // CONTROL ANTI-BUCLE: Si la altura medida es igual a la última enviada, no hacemos nada
-    if (altoContenido === ultimaAltura || altoContenido === 0) {
-      return;
+    function verificarYEnviarAltura() {
+        // Medimos el alto real del documento de forma ultra-precisa
+        const altoActual = Math.max(
+        document.body.scrollHeight, 
+        document.documentElement.scrollHeight,
+        document.body.offsetHeight, 
+        document.documentElement.offsetHeight
+        );
+
+        // Si la altura cambió y no es cero, mandamos el mensaje
+        if (altoActual !== ultimaAltura && altoActual > 0) {
+        ultimaAltura = altoActual;
+        // Usamos '*' para saltar el bloqueo de Referrer-Policy del hosting
+        window.parent.postMessage({ tipo: 'ajustarAlto', alto: altoActual }, '*');
+        }
     }
-    
-    // Guardamos la nueva altura en memoria y la enviamos
-    ultimaAltura = altoContenido;
-    window.parent.postMessage({ tipo: 'ajustarAlto', alto: altoContenido }, '*');
-  }
 
-  // Ejecuciones controladas por eventos nativos fijos (no observadores dinámicos)
-  window.addEventListener('load', function() {
-    // Le damos 300ms de gracia para que renderice antes de medir por primera vez
-    setTimeout(enviarAltura, 300); 
-  });
-  
-  window.addEventListener('resize', enviarAltura);
+    // Ejecutamos al cargar
+    window.addEventListener('load', verificarYEnviarAltura);
+
+    // REVISIÓN AUTOMÁTICA: Cada 800ms revisa si el diseño cambió (ideal para cuando achican la ventana)
+    setInterval(verificarYEnviarAltura, 800);
 </script>
 
 </body>
