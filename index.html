@@ -362,23 +362,29 @@
     window.addEventListener('DOMContentLoaded', loadMercadoData);
 
     //Enviar Height
+    let ultimaAltura = 0;
+
     function enviarAltura() {
-        const altoContenido = document.documentElement.scrollHeight || document.body.scrollHeight;
+        // Calculamos el alto real exacto del contenedor principal
+        const altoContenido = document.documentElement.offsetHeight || document.body.scrollHeight;
         
-        // Al usar '*' permitimos que la web de la radio lo reciba sin importar si el usuario entró con o sin 'www.'
+        // CONTROL ANTI-BUCLE: Si la altura medida es igual a la última enviada, no hacemos nada
+        if (altoContenido === ultimaAltura || altoContenido === 0) {
+        return;
+        }
+        
+        // Guardamos la nueva altura en memoria y la enviamos
+        ultimaAltura = altoContenido;
         window.parent.postMessage({ tipo: 'ajustarAlto', alto: altoContenido }, '*');
     }
 
-    window.addEventListener('load', enviarAltura);
-    window.addEventListener('resize', enviarAltura);
-
-    if (window.ResizeObserver) {
-        const observer = new ResizeObserver(enviarAltura);
-        observer.observe(document.body);
-    }
+    // Ejecuciones controladas por eventos nativos fijos (no observadores dinámicos)
+    window.addEventListener('load', function() {
+        // Le damos 300ms de gracia para que renderice antes de medir por primera vez
+        setTimeout(enviarAltura, 300); 
+    });
     
-    // Ejecución forzada inmediata
-    enviarAltura();
+    window.addEventListener('resize', enviarAltura);
 </script>
 
 </body>
