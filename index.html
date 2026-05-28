@@ -362,29 +362,29 @@
     window.addEventListener('DOMContentLoaded', loadMercadoData);
 
     //Enviar Height
-    let ultimaAltura = 0;
+let ultimaAltura = 0;
 
-    function enviarAltura() {
-        // Calculamos el alto real exacto del contenedor principal
-        const altoContenido = document.documentElement.offsetHeight || document.body.scrollHeight;
-        
-        // CONTROL ANTI-BUCLE: Si la altura medida es igual a la última enviada, no hacemos nada
-        if (altoContenido === ultimaAltura || altoContenido === 0) {
-        return;
-        }
-        
-        // Guardamos la nueva altura en memoria y la enviamos
-        ultimaAltura = altoContenido;
-        window.parent.postMessage({ tipo: 'ajustarAlto', alto: altoContenido }, '*');
-    }
-
-    // Ejecuciones controladas por eventos nativos fijos (no observadores dinámicos)
-    window.addEventListener('load', function() {
-        // Le damos 300ms de gracia para que renderice antes de medir por primera vez
-        setTimeout(enviarAltura, 300); 
-    });
+  function enviarAltura() {
+    // Calculamos el alto real exacto del contenedor principal
+    const altoContenido = document.documentElement.offsetHeight || document.body.scrollHeight;
     
-    window.addEventListener('resize', enviarAltura);
+    // CONTROL ANTI-BUCLE: Si la altura medida es igual a la última enviada, no hacemos nada
+    if (altoContenido === ultimaAltura || altoContenido === 0) {
+      return;
+    }
+    
+    // Guardamos la nueva altura en memoria y la enviamos
+    ultimaAltura = altoContenido;
+    window.parent.postMessage({ tipo: 'ajustarAlto', alto: altoContenido }, '*');
+  }
+
+  // Ejecuciones controladas por eventos nativos fijos (no observadores dinámicos)
+  window.addEventListener('load', function() {
+    // Le damos 300ms de gracia para que renderice antes de medir por primera vez
+    setTimeout(enviarAltura, 300); 
+  });
+  
+  window.addEventListener('resize', enviarAltura);
 </script>
 
 </body>
