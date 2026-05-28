@@ -187,29 +187,22 @@
 </div>
 
 <script>
-    // 1. Obtener la fecha comercial u operativa correcta para Buenos Aires, Argentina
     function getBusinessDate() {
-        // Obtenemos la hora actual mapeada a la zona de Argentina
         let now = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
         let hours = now.getHours();
         let minutes = now.getMinutes();
         
         let subtractDays = 0;
-        let dayOfWeek = now.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+        let dayOfWeek = now.getDay(); 
         let isBeforeOpening = (hours < 6 || (hours === 6 && minutes < 30));
         
-        // Lógica de días hábiles y horarios de apertura (06:30 AM)
         if (dayOfWeek === 0) { 
-            // Domingo -> Trae datos del Viernes anterior
             subtractDays = 2; 
         } else if (dayOfWeek === 6) { 
-            // Sábado -> Trae datos del Viernes anterior
             subtractDays = 1; 
         } else if (dayOfWeek === 1 && isBeforeOpening) { 
-            // Lunes antes de las 6:30 am -> Trae datos del Viernes anterior
             subtractDays = 3; 
         } else if (isBeforeOpening) { 
-            // Martes a Viernes antes de las 6:30 am -> Trae datos del día anterior
             subtractDays = 1; 
         }
         
@@ -226,24 +219,20 @@
         const fecha = getBusinessDate();
         document.getElementById('lbl-fecha').innerText = fecha;
 
-        // URLs originales del MAG parametrizadas por fecha
         const urlCabezas = `https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000003?txtFECHAINI=${fecha}&txtFECHAFIN=${fecha}&CP=&LISTADO=SI`;
         const urlPrecios = `https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000002?txtFECHAINI=${fecha}&txtFECHAFIN=${fecha}&CP=&LISTADO=SI`;
 
-        // Utilización de un proxy libre compatible con entornos HTTPS rígidos (como GitHub Pages)
-        // corsproxy.io no requiere registrarse y procesa la petición de forma directa
         const proxyCabezas = `https://corsproxy.io/?${encodeURIComponent(urlCabezas)}`;
         const proxyPrecios = `https://corsproxy.io/?${encodeURIComponent(urlPrecios)}`;
 
         try {
-            // Descarga de recursos de forma paralela en formato texto
             const [resCabezas, resPrecios] = await Promise.all([
                 fetch(proxyCabezas).then(r => {
-                    if(!r.ok) throw new Error("No se pudo conectar al servidor de ingresos (URL 1)");
+                    if(!r.ok) throw new Error("No se pudo conectar al servidor de ingresos");
                     return r.text();
                 }),
                 fetch(proxyPrecios).then(r => {
-                    if(!r.ok) throw new Error("No se pudo conectar al servidor de precios (URL 2)");
+                    if(!r.ok) throw new Error("No se pudo conectar al servidor de precios");
                     return r.text();
                 })
             ]);
@@ -261,17 +250,16 @@
                     if(parentRow) {
                         let cols = parentRow.querySelectorAll('td');
                         if(cols.length > 0) {
-                            // Obtenemos la columna Total
                             totalCabezas = cols[cols.length - 2]?.innerText.trim() || cols[cols.length - 1]?.innerText.trim();
                         }
                     }
                 }
             });
-            // Si el método estructural por texto falla, aplicamos un fallback sobre el último elemento numérico válido
+            
             if (!totalCabezas || totalCabezas === "0") {
                  let tdElements = docCabezas.querySelectorAll('td');
                  for (let i = tdElements.length - 1; i >= 0; i--) {
-                     if (tdElements[i].innerText.includes('%') === false && /^[0-9.]+$/.test(tdElements[i].innerText.trim())) {
+                     if (tdElements[i].innerText.includes('%') === false && /^[0-9.]+$/.test(tdElements[i].innerText.trim().replace(/\./g, ''))) {
                          totalCabezas = tdElements[i].innerText.trim();
                          break;
                      }
@@ -293,71 +281,60 @@
             }
             document.getElementById('lbl-estado').innerText = estadoTexto;
 
-            // --- EXTRAER TABLA DE PRECIOS POR CATEGORÍA (URL 2) ---
+            // --- EXTRAER FILAS DE PRECIOS POR CATEGORÍA (URL 2 - LÓGICA FLEXIBLE) ---
             const tbodyPrecios = document.querySelector('#precios-table tbody');
             tbodyPrecios.innerHTML = ""; 
 
-            const allTables = docPrecios.querySelectorAll('table');
-            let dataTable = null;
-            
-            // Buscar la tabla específica que contiene el desglose de precios
-            allTables.forEach(t => {
-                let txt = t.innerText.toLowerCase();
-                if(txt.includes('categoria') && (txt.includes('mínimo') || txt.includes('minimo'))) {
-                    dataTable = t;
+            // Escaneamos todas las filas 'tr' de la página directamente sin importar la tabla contenedora
+            const allRows = docPrecios.querySelectorAll('tr');
+            let rowsCount = 0;
+
+            allRows.forEach((row) => {
+                const cells = row.querySelectorAll('td');
+                
+                // Las filas de datos del MAG tienen entre 6 y 10 columnas útiles
+                if(cells.length >= 6) {
+                    let textContent = row.innerText.trim();
+                    let textLower = textContent.toLowerCase();
+                    
+                    // Omitir cabeceras o notas del pie de página
+                    if(textLower.includes('categoria') || textLower.includes('precios por') || textLower.includes('nota:')) return;
+
+                    let categoria = cells[0]?.innerText.trim() || "";
+                    let min = cells[1]?.innerText.trim() || "";
+                    let max = cells[2]?.innerText.trim() || "";
+                    let cabezas = cells[5]?.innerText.trim() || "";
+
+                    // Si no tiene importes o cantidades numéricas válidas, descartamos la fila
+                    if (!min && !max && !cabezas) return;
+
+                    // Si la fila es un totalizador o resumen
+                    const isTotal = textLower.includes('total') || textLower.includes('resumen');
+                    
+                    // Requisito: Si la categoría está en blanco pero posee datos en las columnas
+                    if(categoria === "" && (min !== "" || max !== "")) {
+                        categoria = "[Categoría Especial / S.N.]";
+                    }
+
+                    const tr = document.createElement('tr');
+                    if (isTotal) {
+                        tr.className = 'totals-row';
+                        categoria = "TOTALES";
+                    }
+                    
+                    tr.innerHTML = `
+                        <td>${categoria}</td>
+                        <td><strong>${min || '-'}</strong></td>
+                        <td><strong>${max || '-'}</strong></td>
+                        <td>${cabezas || '-'}</td>
+                    `;
+                    tbodyPrecios.appendChild(tr);
+                    rowsCount++;
                 }
             });
 
-            if (dataTable) {
-                const rows = dataTable.querySelectorAll('tr');
-                let rowsCount = 0;
-
-                rows.forEach((row) => {
-                    const cells = row.querySelectorAll('td');
-                    if(cells.length >= 4) {
-                        let textContent = row.innerText.trim();
-                        
-                        // Omitir cabeceras intermedias incrustadas en el DLL original
-                        if(textContent.toLowerCase().includes('categoria') || textContent.toLowerCase().includes('precios por')) return;
-
-                        let categoria = cells[0]?.innerText.trim() || "";
-                        let min = cells[1]?.innerText.trim() || "-";
-                        let max = cells[2]?.innerText.trim() || "-";
-                        let cabezas = cells[5]?.innerText.trim() || cells[cells.length - 4]?.innerText.trim() || "-";
-                        
-                        // Si la fila carece por completo de datos, saltar
-                        if(!categoria && min === "-" && max === "-") return;
-                        
-                        // Requisito: Si la categoría viene vacía pero tiene valores en las columnas
-                        if(categoria === "" && (min !== "-" || max !== "-")) {
-                            categoria = "[Categoría Especial / S.N.]";
-                        }
-
-                        // Evaluar si corresponde a la fila de totales finales
-                        const isTotal = textContent.toLowerCase().includes('total') || textContent.toLowerCase().includes('resumen');
-                        
-                        const tr = document.createElement('tr');
-                        if (isTotal) {
-                            tr.className = 'totals-row';
-                            categoria = "TOTALES";
-                        }
-                        
-                        tr.innerHTML = `
-                            <td>${categoria}</td>
-                            <td><strong>${min}</strong></td>
-                            <td><strong>${max}</strong></td>
-                            <td>${cabezas}</td>
-                        `;
-                        tbodyPrecios.appendChild(tr);
-                        rowsCount++;
-                    }
-                });
-
-                if(rowsCount === 0) {
-                    tbodyPrecios.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px;'>No hay registros de precios procesados para la fecha seleccionada.</td></tr>";
-                }
-            } else {
-                tbodyPrecios.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px;'>Estructura de precios no encontrada para hoy. Pruebe más tarde.</td></tr>";
+            if(rowsCount === 0) {
+                tbodyPrecios.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px;'>No hay registros de precios procesados para la fecha seleccionada.</td></tr>";
             }
 
             // Ocultar Loader y activar visualización
@@ -370,13 +347,12 @@
                 <div class="error-message">
                     <strong>Error al sincronizar datos del MAG:</strong><br>
                     ${error.message}<br><br>
-                    <small>Esto puede deberse a mantenimiento del servidor del Mercado Agroganadero o saturación temporal del nodo proxy.</small>
+                    <small>Pruebe recargando la página. Esto puede deberse a demoras en el servidor del Mercado o en el Proxy de conexión.</small>
                 </div>
             `;
         }
     }
 
-    // Inicializar la carga al renderizar el documento
     window.addEventListener('DOMContentLoaded', loadMercadoData);
 </script>
 
