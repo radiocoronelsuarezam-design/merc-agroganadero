@@ -216,7 +216,7 @@
         document.getElementById('lbl-fecha').innerText = fecha;
 
         const urlCabezas = `https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000003?txtFECHAINI=${fecha}&txtFECHAFIN=${fecha}&CP=&LISTADO=SI`;
-        const urlPrecios = `https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000002?txtFECHAINI=${fecha}&txtFECHAFIN=${fecha}&CP=&LISTADO=SI`;
+        const urlPrecios = `https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000003?lisEspecies=1&txtFECHA=${fecha}&CP=&LISTADO=SI`;
 
         const proxyCabezas = `https://corsproxy.io/?${encodeURIComponent(urlCabezas)}`;
         const proxyPrecios = `https://corsproxy.io/?${encodeURIComponent(urlPrecios)}`;
