@@ -140,7 +140,7 @@
     </style>
 </head>
 <body>
-<div id="contenido-mercado">
+
 <div class="container">
     <h1>Mercado Agroganadero (MAG)</h1>
     
@@ -181,7 +181,7 @@
         </div>
     </div>
 </div>
-</div>
+
 <script>
     function getBusinessDate() {
         let now = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
@@ -360,6 +360,32 @@
     }
 
     window.addEventListener('DOMContentLoaded', loadMercadoData);
+
+    //Enviar Height
+    let ultimaAltura = 0;
+
+    function verificarYEnviarAltura() {
+        // Medimos el alto real del documento de forma ultra-precisa
+        const altoActual = Math.max(
+        document.body.scrollHeight, 
+        document.documentElement.scrollHeight,
+        document.body.offsetHeight, 
+        document.documentElement.offsetHeight
+        );
+
+        // Si la altura cambió y no es cero, mandamos el mensaje
+        if (altoActual !== ultimaAltura && altoActual > 0) {
+        ultimaAltura = altoActual;
+        // Usamos '*' para saltar el bloqueo de Referrer-Policy del hosting
+        window.parent.postMessage({ tipo: 'ajustarAlto', alto: altoActual }, '*');
+        }
+    }
+
+    // Ejecutamos al cargar
+    window.addEventListener('load', verificarYEnviarAltura);
+
+    // REVISIÓN AUTOMÁTICA: Cada 800ms revisa si el diseño cambió (ideal para cuando achican la ventana)
+    setInterval(verificarYEnviarAltura, 800);
 </script>
 
 </body>
