@@ -360,6 +360,30 @@
     }
 
     window.addEventListener('DOMContentLoaded', loadMercadoData);
+
+    //Enviar Height
+    function enviarAltura() {
+        // Calculamos el alto total real de la página
+        const altoContenido = document.documentElement.scrollHeight || document.body.scrollHeight;
+        
+        // CANAL SEGURO: Enviamos el dato apuntando estrictamente a la URL de la radio
+        window.parent.postMessage(
+        { tipo: 'ajustarAlto', alto: altoContenido }, 
+        'https://radiocoronelsuarez.com.ar'
+        );
+    }
+
+    // Evento al cargar la página por completo
+    window.addEventListener('load', enviarAltura);
+
+    // Evento al cambiar el tamaño de la ventana
+    window.addEventListener('resize', enviarAltura);
+
+    // Observador por si el contenido interno cambia o se expande dinámicamente
+    if (window.ResizeObserver) {
+        const observer = new ResizeObserver(enviarAltura);
+        observer.observe(document.body);
+    }
 </script>
 
 </body>
