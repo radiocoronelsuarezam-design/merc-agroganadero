@@ -365,25 +365,29 @@
     let ultimaAltura = 0;
 
     function enviarAltura() {
-        // Calculamos el alto real exacto del contenedor principal
-        const altoContenido = document.documentElement.offsetHeight || document.body.scrollHeight;
+        // Forzamos al cuerpo a recalcular su altura real en base al layout actual
+        const altoContenido = Math.ceil(document.body.getBoundingClientRect().height);
         
-        // CONTROL ANTI-BUCLE: Si la altura medida es igual a la última enviada, no hacemos nada
-        if (altoContenido === ultimaAltura || altoContenido === 0) {
-        return;
-        }
+        // Si la altura dio 0 por un retraso de carga, no hacemos nada
+        if (altoContenido === 0) return;
         
-        // Guardamos la nueva altura en memoria y la enviamos
+        // Guardamos y enviamos
         ultimaAltura = altoContenido;
         window.parent.postMessage({ tipo: 'ajustarAlto', alto: altoContenido }, '*');
     }
 
-    // Ejecuciones controladas por eventos nativos fijos (no observadores dinámicos)
-    window.addEventListener('load', function() {
-        // Le damos 300ms de gracia para que renderice antes de medir por primera vez
-        setTimeout(enviarAltura, 300); 
+    // Escuchar si la radio nos pide recalcular la altura
+    window.addEventListener('message', function(evento) {
+        if (evento.data && evento.data.tipo === 'radioHizoResize') {
+        // Le damos 50 milisegundos para que el CSS de GitHub se reacomode antes de medir
+        setTimeout(enviarAltura, 50);
+        }
     });
-    
+
+    // Eventos de carga iniciales habituales
+    window.addEventListener('load', function() {
+        setTimeout(enviarAltura, 200);
+    });
     window.addEventListener('resize', enviarAltura);
 </script>
 
