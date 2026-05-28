@@ -295,12 +295,14 @@
                     let textContent = row.innerText.trim();
                     let textLower = textContent.toLowerCase();
                     
-                    // 1. Filtro estricto para remover menús de pie de página ("imprimir", "cerrar", etc)
+                    // 1. Filtro estricto para remover menús de pie de página, notas y el membrete de "Mercado Agroganadero S.A. Buenos Aires"
                     if(textLower.includes('categoria') || 
                        textLower.includes('precios por') || 
                        textLower.includes('nota:') || 
                        textLower.includes('imprimir') || 
-                       textLower.includes('cerrar')) {
+                       textLower.includes('cerrar') ||
+                       textLower.includes('mercado agroganadero') ||
+                       textLower.includes('buenos aires')) {
                         return;
                     }
 
@@ -312,9 +314,7 @@
                     // Es la fila de totales generales al final del cuadro
                     const isTotal = textLower.includes('total') || textLower.includes('resumen');
 
-                    // 2. FILTRO CLAVE: Si los precios mínimos o máximos contienen únicamente un guion "-", 
-                    // o están completamente vacíos, descartamos la fila por entero (aplica a cabeceras de grupos vacías).
-                    // Nota: Exceptuamos la fila de TOTALES finales para asegurar que siempre se muestre.
+                    // 2. Filtro para remover filas vacías o sin precios
                     if (!isTotal) {
                         if (!min || !max || min === "-" || max === "-" || min.trim() === "" || max.trim() === "") {
                             return; 
